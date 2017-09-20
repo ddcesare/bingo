@@ -71,14 +71,27 @@ viewFooter =
         ]
 
 
+viewEntryItem : Entry -> Html msg
+viewEntryItem entry =
+    li []
+        [ span [ class "phrase" ] [ text entry.phrase ]
+        , span [ class "point" ] [ text (toString entry.points) ]
+        ]
 
--- view : Html msg
+
+viewEntryList : List Entry -> Html msg
+viewEntryList entries =
+    entries
+        |> List.map viewEntryItem
+        |> ul []
 
 
+view : Model -> Html msg
 view model =
     div [ class "content" ]
         [ viewHeader "BUZZWORD BINGO"
         , viewPlayer model.name model.gameNumber
+        , viewEntryList model.entries
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
         ]
