@@ -33,7 +33,9 @@ initialModel =
 
 initialEntries : List Entry
 initialEntries =
-    [ Entry 1 "Future-Proof" 100 False
+    [ Entry 3 "In The Cloud" 300 False
+    , Entry 1 "Future-Proof" 100 False
+    , Entry 4 "Rock-Star Ninja" 400 False
     , Entry 2 "Doing Agile" 200 False
     ]
 
@@ -45,6 +47,7 @@ initialEntries =
 type Msg
     = NewGame
     | Mark Int
+    | SortEntry
 
 
 update : Msg -> Model -> Model
@@ -65,6 +68,9 @@ update msg model =
                         e
             in
             { model | entries = List.map markEntry model.entries }
+
+        SortEntry ->
+            { model | entries = List.sortBy .id model.entries }
 
 
 
@@ -124,6 +130,8 @@ view model =
         , viewEntryList model.entries
         , div [ class "button-group" ]
             [ button [ onClick NewGame ] [ text "New Game" ] ]
+        , div [ class "button-group" ]
+            [ button [ onClick SortEntry ] [ text "Sort Entries" ] ]
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
         ]
