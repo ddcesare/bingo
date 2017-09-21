@@ -3,6 +3,7 @@ module Bingo exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
+import Http
 
 
 -- MODEL
@@ -27,17 +28,8 @@ initialModel : Model
 initialModel =
     { name = "dd"
     , gameNumber = 1
-    , entries = initialEntries
+    , entries = []
     }
-
-
-initialEntries : List Entry
-initialEntries =
-    [ Entry 3 "In The Cloud" 300 False
-    , Entry 1 "Future-Proof" 100 False
-    , Entry 4 "Rock-Star Ninja" 400 False
-    , Entry 2 "Doing Agile" 200 False
-    ]
 
 
 
@@ -48,16 +40,34 @@ type Msg
     = NewGame
     | Mark Int
     | SortEntry
+    | NewEntries (Result Http.Error String)
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         NewGame ->
-            { model
+            ( { model
                 | gameNumber = model.gameNumber + 1
-                , entries = initialEntries
-            }
+              }
+            , getEntries
+            )
+
+        NewEntries result ->
+            case result of
+                Ok jsonString ->
+                    let
+                        _ =
+                            Debug.log "It worked!" jsonString
+                    in
+                    ( model, Cmd.none )
+
+                Err error ->
+                    let
+                        _ =
+                            Debug.log "Oops!" error
+                    in
+                    ( model, Cmd.none )
 
         Mark id ->
             let
@@ -67,10 +77,26 @@ update msg model =
                     else
                         e
             in
-            { model | entries = List.map markEntry model.entries }
+            ( { model | entries = List.map markEntry model.entries }, Cmd.none )
 
         SortEntry ->
-            { model | entries = List.sortBy .id model.entries }
+            ( { model | entries = List.sortBy .id model.entries }, Cmd.none )
+
+
+
+-- COMMANDS
+
+
+entriesUrl : String
+entriesUrl =
+    "http://localhost:3000/random-entries"
+
+
+getEntries : Cmd Msg
+getEntries =
+    entriesUrl
+        |> Http.getString
+        |> Http.send NewEntries
 
 
 
@@ -154,10 +180,16 @@ view model =
         ]
 
 
+init : ( Model, Cmd Msg )
+init =
+    ( initialModel, getEntries )
+
+
 main : Program Never Model Msg
 main =
-    Html.beginnerProgram
-        { model = initialModel
+    Html.program
+        { init = init
         , view = view
         , update = update
+        , subscriptions = always Sub.none
         }
