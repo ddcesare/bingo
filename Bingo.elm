@@ -4,6 +4,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Http
+import Json.Decode as Decode exposing (Decoder, field, succeed)
 
 
 -- MODEL
@@ -39,8 +40,7 @@ initialModel =
 type Msg
     = NewGame
     | Mark Int
-    | SortEntry
-    | NewEntries (Result Http.Error String)
+    | NewEntries (Result Http.Error (List Entry))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -55,12 +55,12 @@ update msg model =
 
         NewEntries result ->
             case result of
-                Ok jsonString ->
+                Ok randomEntries ->
                     let
                         _ =
-                            Debug.log "It worked!" jsonString
+                            Debug.log "It worked!" randomEntries
                     in
-                    ( model, Cmd.none )
+                    ( { model | entries = sortEntries randomEntries }, Cmd.none )
 
                 Err error ->
                     let
@@ -79,8 +79,10 @@ update msg model =
             in
             ( { model | entries = List.map markEntry model.entries }, Cmd.none )
 
-        SortEntry ->
-            ( { model | entries = List.sortBy .id model.entries }, Cmd.none )
+
+sortEntries : List Entry -> List Entry
+sortEntries entries =
+    List.sortBy .points entries
 
 
 
@@ -92,11 +94,29 @@ entriesUrl =
     "http://localhost:3000/random-entries"
 
 
+entryListDecoder : Decoder (List Entry)
+entryListDecoder =
+    Decode.list entryDecoder
+
+
 getEntries : Cmd Msg
 getEntries =
-    entriesUrl
-        |> Http.getString
+    entryListDecoder
+        |> Http.get entriesUrl
         |> Http.send NewEntries
+
+
+
+-- DECODERS
+
+
+entryDecoder : Decoder Entry
+entryDecoder =
+    Decode.map4 Entry
+        (field "id" Decode.int)
+        (field "phrase" Decode.string)
+        (field "points" Decode.int)
+        (succeed False)
 
 
 
@@ -173,8 +193,6 @@ view model =
         , viewScore (sumMarkedPoints model.entries)
         , div [ class "button-group" ]
             [ button [ onClick NewGame ] [ text "New Game" ] ]
-        , div [ class "button-group" ]
-            [ button [ onClick SortEntry ] [ text "Sort Entries" ] ]
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
         ]
