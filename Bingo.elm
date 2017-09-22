@@ -5,6 +5,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode exposing (Decoder, field, succeed)
+import Json.Encode as Encode
 
 
 -- MODEL
@@ -14,6 +15,7 @@ type alias Model =
     { name : String
     , gameNumber : Int
     , entries : List Entry
+    , alertMessage : Maybe String
     }
 
 
@@ -25,11 +27,19 @@ type alias Entry =
     }
 
 
+type alias Score =
+    { id : Int
+    , name : String
+    , score : Int
+    }
+
+
 initialModel : Model
 initialModel =
     { name = "dd"
     , gameNumber = 1
     , entries = []
+    , alertMessage = Nothing
     }
 
 
@@ -41,6 +51,9 @@ type Msg
     = NewGame
     | Mark Int
     | NewEntries (Result Http.Error (List Entry))
+    | CloseAlert
+    | ShareScore
+    | NewScore (Result Http.Error Score)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -53,6 +66,25 @@ update msg model =
             , getEntries
             )
 
+        ShareScore ->
+            ( model, postScore model )
+
+        NewScore result ->
+            case result of
+                Ok score ->
+                    let
+                        message =
+                            "Your score of " ++ toString score.score ++ " was successfully shared!"
+                    in
+                    ( { model | alertMessage = Just message }, Cmd.none )
+
+                Err error ->
+                    let
+                        message =
+                            "Error posting your score: " ++ toString error
+                    in
+                    ( { model | alertMessage = Just message }, Cmd.none )
+
         NewEntries result ->
             case result of
                 Ok randomEntries ->
@@ -64,10 +96,35 @@ update msg model =
 
                 Err error ->
                     let
-                        _ =
-                            Debug.log "Oops!" error
+                        errorMessage =
+                            case error of
+                                Http.NetworkError ->
+                                    "Is the server running?"
+
+                                Http.Timeout ->
+                                    "Request timed out!"
+
+                                Http.BadUrl url ->
+                                    "Invalid URL: " ++ url
+
+                                Http.BadStatus response ->
+                                    case response.status.code of
+                                        401 ->
+                                            "Unauthorized"
+
+                                        404 ->
+                                            "Not Found"
+
+                                        code ->
+                                            toString code
+
+                                Http.BadPayload reason response ->
+                                    reason
                     in
-                    ( model, Cmd.none )
+                    ( { model | alertMessage = Just (toString errorMessage) }, Cmd.none )
+
+        CloseAlert ->
+            ( { model | alertMessage = Nothing }, Cmd.none )
 
         Mark id ->
             let
@@ -106,8 +163,24 @@ getEntries =
         |> Http.send NewEntries
 
 
+postScore : Model -> Cmd Msg
+postScore model =
+    let
+        url =
+            "http://localhost:3000/scores"
 
--- DECODERS
+        body =
+            encodeScore model
+                |> Http.jsonBody
+
+        request =
+            Http.post url body scoreDecoder
+    in
+    Http.send NewScore request
+
+
+
+-- DECODERS/ENCODERS
 
 
 entryDecoder : Decoder Entry
@@ -117,6 +190,22 @@ entryDecoder =
         (field "phrase" Decode.string)
         (field "points" Decode.int)
         (succeed False)
+
+
+encodeScore : Model -> Encode.Value
+encodeScore model =
+    Encode.object
+        [ ( "name", Encode.string model.name )
+        , ( "score", Encode.int (sumMarkedPoints model.entries) )
+        ]
+
+
+scoreDecoder : Decoder Score
+scoreDecoder =
+    Decode.map3 Score
+        (field "id" Decode.int)
+        (field "name" Decode.string)
+        (field "score" Decode.int)
 
 
 
@@ -184,15 +273,31 @@ viewScore sum =
         ]
 
 
+viewAlertMessage : Maybe String -> Html Msg
+viewAlertMessage alertMessage =
+    case alertMessage of
+        Just message ->
+            div [ class "alert" ]
+                [ span [ class "close", onClick CloseAlert ] [ text "X" ]
+                , text message
+                ]
+
+        Nothing ->
+            text ""
+
+
 view : Model -> Html Msg
 view model =
     div [ class "content" ]
         [ viewHeader "BUZZWORD BINGO"
         , viewPlayer model.name model.gameNumber
+        , viewAlertMessage model.alertMessage
         , viewEntryList model.entries
         , viewScore (sumMarkedPoints model.entries)
         , div [ class "button-group" ]
-            [ button [ onClick NewGame ] [ text "New Game" ] ]
+            [ button [ onClick NewGame ] [ text "New Game" ]
+            , button [ onClick ShareScore ] [ text "Share Score" ]
+            ]
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
         ]
