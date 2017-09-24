@@ -8,6 +8,15 @@ import Json.Decode as Decode exposing (Decoder, field, succeed)
 import Json.Encode as Encode
 
 
+-- SETTINGS
+
+
+apiUrlPrefix : String
+apiUrlPrefix =
+    "http://localhost:3000"
+
+
+
 -- MODEL
 
 
@@ -146,11 +155,6 @@ sortEntries entries =
 -- COMMANDS
 
 
-entriesUrl : String
-entriesUrl =
-    "http://localhost:3000/random-entries"
-
-
 entryListDecoder : Decoder (List Entry)
 entryListDecoder =
     Decode.list entryDecoder
@@ -159,7 +163,7 @@ entryListDecoder =
 getEntries : Cmd Msg
 getEntries =
     entryListDecoder
-        |> Http.get entriesUrl
+        |> Http.get (apiUrlPrefix ++ "/random-entries")
         |> Http.send NewEntries
 
 
@@ -167,7 +171,7 @@ postScore : Model -> Cmd Msg
 postScore model =
     let
         url =
-            "http://localhost:3000/scores"
+            apiUrlPrefix ++ "/scores"
 
         body =
             encodeScore model
@@ -215,6 +219,11 @@ scoreDecoder =
 playerInfo : String -> Int -> String
 playerInfo name gameNumber =
     name ++ " - Game #" ++ toString gameNumber
+
+
+hasZeroScore : Model -> Bool
+hasZeroScore model =
+    sumMarkedPoints model.entries == 0
 
 
 viewPlayer : String -> Int -> Html Msg
@@ -296,7 +305,7 @@ view model =
         , viewScore (sumMarkedPoints model.entries)
         , div [ class "button-group" ]
             [ button [ onClick NewGame ] [ text "New Game" ]
-            , button [ onClick ShareScore ] [ text "Share Score" ]
+            , button [ onClick ShareScore, disabled (hasZeroScore model) ] [ text "Share Score" ]
             ]
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
