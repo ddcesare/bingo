@@ -6,6 +6,7 @@ import Html.Events exposing (onClick, onInput)
 import Http
 import Json.Decode as Decode exposing (Decoder, field, succeed)
 import Json.Encode as Encode
+import ViewHelpers exposing (..)
 
 
 -- SETTINGS
@@ -119,11 +120,7 @@ update msg model =
                     ( { model | alertMessage = Just message }, Cmd.none )
 
                 Err error ->
-                    let
-                        message =
-                            "Error posting your score: " ++ toString error
-                    in
-                    ( { model | alertMessage = Just message }, Cmd.none )
+                    ( { model | alertMessage = Just (httpErrorToMessage error) }, Cmd.none )
 
         NewEntries result ->
             case result of
@@ -135,33 +132,7 @@ update msg model =
                     ( { model | entries = sortEntries randomEntries }, Cmd.none )
 
                 Err error ->
-                    let
-                        errorMessage =
-                            case error of
-                                Http.NetworkError ->
-                                    "Is the server running?"
-
-                                Http.Timeout ->
-                                    "Request timed out!"
-
-                                Http.BadUrl url ->
-                                    "Invalid URL: " ++ url
-
-                                Http.BadStatus response ->
-                                    case response.status.code of
-                                        401 ->
-                                            "Unauthorized"
-
-                                        404 ->
-                                            "Not Found"
-
-                                        code ->
-                                            toString code
-
-                                Http.BadPayload reason response ->
-                                    reason
-                    in
-                    ( { model | alertMessage = Just (toString errorMessage) }, Cmd.none )
+                    ( { model | alertMessage = Just (httpErrorToMessage error) }, Cmd.none )
 
         CloseAlert ->
             ( { model | alertMessage = Nothing }, Cmd.none )
@@ -180,6 +151,33 @@ update msg model =
 sortEntries : List Entry -> List Entry
 sortEntries entries =
     List.sortBy .points entries
+
+
+httpErrorToMessage : Http.Error -> String
+httpErrorToMessage error =
+    case error of
+        Http.NetworkError ->
+            "Is the server running?"
+
+        Http.Timeout ->
+            "Request timed out!"
+
+        Http.BadUrl url ->
+            "Invalid URL: " ++ url
+
+        Http.BadStatus response ->
+            case response.status.code of
+                401 ->
+                    "Unauthorized"
+
+                404 ->
+                    "Not Found"
+
+                code ->
+                    toString code
+
+        Http.BadPayload reason response ->
+            reason
 
 
 
@@ -305,19 +303,6 @@ viewScore sum =
         ]
 
 
-viewAlertMessage : Maybe String -> Html Msg
-viewAlertMessage alertMessage =
-    case alertMessage of
-        Just message ->
-            div [ class "alert" ]
-                [ span [ class "close", onClick CloseAlert ] [ text "X" ]
-                , text message
-                ]
-
-        Nothing ->
-            text ""
-
-
 validateNameInput : Model -> Bool
 validateNameInput model =
     String.isEmpty model.nameInput
@@ -337,7 +322,7 @@ viewNameInput model =
                     ]
                     []
                 , button [ disabled (validateNameInput model), onClick SaveName ] [ text "Save" ]
-                , button [ onClick CancelName ] [ text "Cancel" ]
+                , primaryButton CancelName "Cancel"
                 ]
 
         Playing ->
@@ -350,12 +335,12 @@ view model =
         [ viewHeader "BUZZWORD BINGO"
         , viewPlayer model.name model.gameNumber
         , viewNameInput model
-        , viewAlertMessage model.alertMessage
+        , alert CloseAlert model.alertMessage
         , viewEntryList model.entries
         , viewScore (sumMarkedPoints model.entries)
         , div [ class "button-group" ]
-            [ button [ onClick NewGame ] [ text "New Game" ]
-            , button [ onClick ShareScore, disabled (hasZeroScore model) ] [ text "Share Score" ]
+            [ primaryButton NewGame "New Game"
+            , primaryButton ShareScore "Share Score"
             ]
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
